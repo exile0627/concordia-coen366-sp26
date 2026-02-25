@@ -28,7 +28,7 @@ class Server implements Runnable {
     private ServerSocket serverSocket; // TCP server socket
 
     public Server(int port) throws IOException {
-        // Create server socket and bind to port
+        // Create server socket, bind to port, and listen on the port
         serverSocket = new ServerSocket(port);
     }
 
