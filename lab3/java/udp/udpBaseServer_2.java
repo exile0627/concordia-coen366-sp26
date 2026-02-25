@@ -1,77 +1,141 @@
 package lab3.java.udp;
 
-import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
+import java.io.*;
+import java.net.*;
+
+import lab3.java.udp.model.Employee;
 
 public class udpBaseServer_2 {
 
-    public static void main(String[] args) throws IOException {
+    // ================================
+    // Configuration
+    // ================================
+    private static final int PORT = 1234;
+    private static final int BUFFER_SIZE = 65535;
 
-        // Create a DatagramSocket bound to port 1234
-        // This allows the server to receive UDP datagrams sent to port 1234
-        DatagramSocket ds = new DatagramSocket(1234);
-
-        // Buffer used to store incoming data
-        byte[] receive = new byte[65535];
-
-        DatagramPacket DpReceive = null;
-
-        /*
-        ============================================================
-        IMPORTANT:
-        This is a SINGLE-THREADED UDP server.
-        - It processes one datagram at a time.
-        - It does NOT create new threads.
-        - It does NOT handle multiple clients concurrently.
-        - All incoming packets are processed sequentially.
-        ============================================================
-        */
-
-        while (true) {
-
-            // Create a DatagramPacket to receive data
-            DpReceive = new DatagramPacket(receive, receive.length);
-
-            // Block until a datagram is received
-            ds.receive(DpReceive);
-
-            // Convert received byte data into string
-            System.out.println("Client:-" + data(receive));
-
-            // If client sends "bye", terminate the server
-            if (data(receive).toString().equals("bye")) {
-                System.out.println("Client sent bye.....EXITING");
-                break;
-            }
-
-            // Clear the buffer after every message
-            receive = new byte[65535];
-        }
-
-        // Close the socket when done
-        ds.close();
+    public static void main(String[] args) {
+        udpBaseServer_2 server = new udpBaseServer_2();
+        server.startServer();
     }
 
-    // ============================================================
-    // Convert byte array data into a readable string
-    // Stops when it encounters a null byte (0)
-    // ============================================================
-    public static StringBuilder data(byte[] a) {
+    // ================================
+    // Server Entry
+    // ================================
+    public void startServer() {
 
-        if (a == null)
-            return null;
+        System.out.println("UDP Server started on port " + PORT);
 
-        StringBuilder ret = new StringBuilder();
+        try (DatagramSocket socket = new DatagramSocket(PORT)) {
 
-        int i = 0;
+            byte[] buffer = new byte[BUFFER_SIZE];
 
-        // Read until null terminator
-        while (a[i] != 0) {
-            ret.append((char) a[i]);
-            i++;
+            while (true) {
+
+                System.out.println("Waiting for datagram...");
+
+                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                socket.receive(packet);
+
+                handleRequest(socket, packet);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
-        return ret;
+        System.out.println("Server closed");
+    }
+
+    // ================================
+    // Request Handler
+    // ================================
+    private void handleRequest(DatagramSocket socket, DatagramPacket packet) throws Exception {
+
+        String message = parseMessage(packet);
+        System.out.println("Client: " + message);
+
+        InetAddress clientAddress = packet.getAddress();
+        int clientPort = packet.getPort();
+
+        byte[] responseBytes = null;
+
+        // Business logic
+        if (message.equalsIgnoreCase("bye")) {
+            System.out.println("Client sent bye... EXITING");
+            System.exit(0);
+        }
+
+        else if (message.equalsIgnoreCase("hello")) {
+            responseBytes = "send".getBytes();
+        }
+
+        else {
+            responseBytes = handleObjectRequest(packet, message);
+        }
+
+        sendResponse(socket, responseBytes, clientAddress, clientPort);
+    }
+
+    // ================================
+    // Parse UDP Message
+    // ================================
+    private String parseMessage(DatagramPacket packet) {
+        return new String(
+                packet.getData(),
+                0,
+                packet.getLength()
+        ).trim();
+    }
+
+    // ================================
+    // Object Deserialization Handling
+    // ================================
+    private byte[] handleObjectRequest(DatagramPacket packet, String fallbackMessage) {
+
+        try {
+
+            ByteArrayInputStream bais =
+                    new ByteArrayInputStream(
+                            packet.getData(),
+                            0,
+                            packet.getLength()
+                    );
+
+            ObjectInputStream ois = new ObjectInputStream(bais);
+            Object obj = ois.readObject();
+
+            if (obj instanceof Employee) {
+
+                Employee emp = (Employee) obj;
+                System.out.println("Received Employee: " + emp);
+
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                ObjectOutputStream oos = new ObjectOutputStream(baos);
+                oos.writeObject(emp);
+
+                return baos.toByteArray();
+            }
+
+        } catch (Exception ignored) {
+        }
+
+        return ("Echo: " + fallbackMessage).getBytes();
+    }
+
+    // ================================
+    // Send Response
+    // ================================
+    private void sendResponse(
+            DatagramSocket socket,
+            byte[] data,
+            InetAddress address,
+            int port
+    ) throws IOException {
+
+        DatagramPacket response =
+                new DatagramPacket(data, data.length, address, port);
+
+        socket.send(response);
+        System.out.println("Replied to client");
     }
 }
