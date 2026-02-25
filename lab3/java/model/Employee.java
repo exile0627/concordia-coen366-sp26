@@ -1,4 +1,4 @@
-package lab3.java.udp.model;
+package lab3.java.model;
 
 import java.io.Serializable;
 

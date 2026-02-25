@@ -3,13 +3,21 @@ package lab3.java.udp;
 import java.io.*;
 import java.net.*;
 
-import lab3.java.udp.model.Employee;
+import lab3.java.model.Employee;
 
+/**
+ * UDP Server Demo
+ *
+ * Important Concepts:
+ * -------------------
+ * 1. UDP is connectionless.
+ * 2. Each datagram packet contains client address + port.
+ * 3. This implementation is SINGLE-THREAD blocking server.
+ * 4. Server CAN communicate with multiple clients,
+ *    BUT only one packet is processed at a time.
+ */
 public class udpBaseServer_2 {
 
-    // ================================
-    // Configuration
-    // ================================
     private static final int PORT = 1234;
     private static final int BUFFER_SIZE = 65535;
 
@@ -18,13 +26,23 @@ public class udpBaseServer_2 {
         server.startServer();
     }
 
-    // ================================
-    // Server Entry
-    // ================================
+    // =====================================================
+    // Server main loop (Blocking UDP Server)
+    // =====================================================
     public void startServer() {
 
         System.out.println("UDP Server started on port " + PORT);
 
+        /*
+         * Blocking behavior explanation:
+         * --------------------------------
+         * socket.receive(packet)
+         * will block current thread until:
+         * - A UDP packet arrives
+         *
+         * This means server cannot process other tasks
+         * while waiting for network data.
+         */
         try (DatagramSocket socket = new DatagramSocket(PORT)) {
 
             byte[] buffer = new byte[BUFFER_SIZE];
@@ -33,9 +51,21 @@ public class udpBaseServer_2 {
 
                 System.out.println("Waiting for datagram...");
 
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                DatagramPacket packet =
+                        new DatagramPacket(buffer, buffer.length);
+
+                // BLOCKING CALL
+                // Server waits here until a client sends data
                 socket.receive(packet);
 
+                /*
+                 * Even though UDP is connectionless,
+                 * packet still contains:
+                 * - Client IP address
+                 * - Client port number
+                 *
+                 * So server can reply directly.
+                 */
                 handleRequest(socket, packet);
             }
 
@@ -46,10 +76,13 @@ public class udpBaseServer_2 {
         System.out.println("Server closed");
     }
 
-    // ================================
+    // =====================================================
     // Request Handler
-    // ================================
-    private void handleRequest(DatagramSocket socket, DatagramPacket packet) throws Exception {
+    // =====================================================
+    private void handleRequest(
+            DatagramSocket socket,
+            DatagramPacket packet
+    ) throws Exception {
 
         String message = parseMessage(packet);
         System.out.println("Client: " + message);
@@ -76,10 +109,11 @@ public class udpBaseServer_2 {
         sendResponse(socket, responseBytes, clientAddress, clientPort);
     }
 
-    // ================================
-    // Parse UDP Message
-    // ================================
+    // =====================================================
+    // Parse message from UDP packet
+    // =====================================================
     private String parseMessage(DatagramPacket packet) {
+
         return new String(
                 packet.getData(),
                 0,
@@ -87,10 +121,13 @@ public class udpBaseServer_2 {
         ).trim();
     }
 
-    // ================================
-    // Object Deserialization Handling
-    // ================================
-    private byte[] handleObjectRequest(DatagramPacket packet, String fallbackMessage) {
+    // =====================================================
+    // Handle serialized object request
+    // =====================================================
+    private byte[] handleObjectRequest(
+            DatagramPacket packet,
+            String fallbackMessage
+    ) {
 
         try {
 
@@ -109,9 +146,12 @@ public class udpBaseServer_2 {
                 Employee emp = (Employee) obj;
                 System.out.println("Received Employee: " + emp);
 
+                // Echo serialized object back
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 ObjectOutputStream oos = new ObjectOutputStream(baos);
+
                 oos.writeObject(emp);
+                oos.flush();
 
                 return baos.toByteArray();
             }
@@ -122,9 +162,9 @@ public class udpBaseServer_2 {
         return ("Echo: " + fallbackMessage).getBytes();
     }
 
-    // ================================
-    // Send Response
-    // ================================
+    // =====================================================
+    // Send response packet
+    // =====================================================
     private void sendResponse(
             DatagramSocket socket,
             byte[] data,
@@ -136,6 +176,7 @@ public class udpBaseServer_2 {
                 new DatagramPacket(data, data.length, address, port);
 
         socket.send(response);
+
         System.out.println("Replied to client");
     }
 }

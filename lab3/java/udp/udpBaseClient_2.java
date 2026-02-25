@@ -3,7 +3,7 @@ package lab3.java.udp;
 import java.io.*;
 import java.net.*;
 
-import lab3.java.udp.model.Employee;
+import lab3.java.model.Employee;
 
 /**
  * UDP Client Demo
